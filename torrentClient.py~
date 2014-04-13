@@ -1,0 +1,11 @@
+#!/usr/bin/python
+
+import sys
+import bencode
+
+def main(args):
+
+	if len(args) != 3:
+		print "\nInvalid syntax, please use the arguments 'arg1: source, arg2: destination"
+
+main(sys.argv)
