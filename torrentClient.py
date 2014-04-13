@@ -6,6 +6,8 @@ import socket
 import sys
 import threading
 import urllib
+import urllib2
+
 
 def main(args):
 
@@ -22,8 +24,8 @@ def main(args):
 	torrentTrackerHostName = torrentTrackerHostName[:slash2]
 	colon = torrentTrackerHostName.find(":")
 	torrentTrackerHostName = torrentTrackerHostName[:colon]
-	print torrentTrackerUrl
-	print torrentTrackerHostName
+	# print torrentTrackerUrl
+	# print torrentTrackerHostName
 
 
 
@@ -50,7 +52,7 @@ def main(args):
 	# print(str(to"rrentTrackerHostName))
 	# print decodedDict["announce-list"]
 
-	getRequest = (
+	getRequest = ( torrentTrackerUrl +
 	"?info_hash=" + info_hash  +
 	"&peer_id=" + peer_id  +
 	"&port=6881" +
@@ -59,10 +61,16 @@ def main(args):
 	"&left=" + str(left) +
 	"&compact=" + str(1) +
 	"&no_peer_id=0" +
-	"&event=started HTTP/1.1 \n\r")
+	"&event=started")
+
+	response = urllib2.urlopen(getRequest)
+	bencodedResponse = response.read()
+	decodedResponse = bencode.bdecode(bencodedResponse)
+	peerList = decodedResponse["peers"]
+	print type(peerList)
 
 	# getRequest = urllib.quote(getRequest)
-	print getRequest
+	# print getRequest
 
 
 	# serverPort = 6881
@@ -94,8 +102,8 @@ def main(args):
 		# capitalizedSentence = sentence.upper()
 		# connectionSocket.send(capitalizedSentence)
 	# connectionSocket.close()
-	print trackerSocket.recv(4096)
+	# print trackerSocket.recv(4096)
 
-	trackerSocket.close()
+	# trackerSocket.close()
 
 main(sys.argv)
