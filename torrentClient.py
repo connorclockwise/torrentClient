@@ -12,11 +12,30 @@ import urllib2
 def main(args):
 
 	if len(args) != 3:
-		sys.exit("\nInvalid syntax, please use the arguments 'arg1: source, arg2: destination")
+		sys.exit("\nInvalid syntax, please use the arguments 'arg1: torrent file path, arg2: finished file path")
 
-	peerList = getPeerList(args[1])
-	print peerList
-	
+	metaDataPath = args[1]
+	metaDataList = bencode.bdecode(open(metaDataPath, 'rb').read())
+
+	hashed_info = hashMetaData(metaDataList)
+	peer_id = "abcdefghijklmonpqrst"
+	peerList = getPeerList(metaDataList, hashed_info, peer_id)
+	# print peerList
+	print "Peer 1: " + peerList[0][0]
+
+	handshake = chr(19)+"BitTorrent protocol"+chr(0)*8+hashed_info+peer_id
+	print handshake
+
+
+	trackerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	trackerSocket.connect((peerList[0][0],int(peerList[0][1])))
+	trackerSocket.send(handshake)
+	print trackerSocket.recv(4096)
+	# while 1:
+	# 	connectionSocket, addr = serverSocket.accept()
+	# 	print trackerSocket.recv(4096)
+	# 	sentence = connectionSocket.recv(1024)
+	# 	print sentence
 
 	# getRequest = urllib.quote(getRequest)
 	# print getRequest
@@ -55,11 +74,9 @@ def main(args):
 
 	# trackerSocket.close()
 
-def getPeerList(metaDataPath):
+def getPeerList(metaDataList, hashed_info, peer_id):
 
-	decodedData = bencode.bdecode(open(metaDataPath, 'rb').read())
-
-	torrentTrackerUrl = decodedData["announce"]
+	torrentTrackerUrl = metaDataList["announce"]
 	slash = torrentTrackerUrl.find("/")
 	torrentTrackerHostName = torrentTrackerUrl[slash + 2:]
 	slash2 = torrentTrackerHostName.find("/")
@@ -69,17 +86,13 @@ def getPeerList(metaDataPath):
 	# print torrentTrackerUrl
 	# print torrentTrackerHostName
 
-	sha1 = hashlib.sha1()
-	bencodedInfo = bencode.bencode(decodedData["info"])
-	sha1.update(bencodedInfo)
-	hashed_info = sha1.digest()
+	
 
-	info_hash = urllib.quote(hashed_info)
-	peer_id = "abcdefghijklmonpqrst"
+	hashed_info_urlSafe = urllib.quote(hashed_info)
 	port = "6881"
 	uploaded = 0
 	downloaded = 0 
-	left = decodedData["info"]["length"]
+	left = metaDataList["info"]["length"]
 	compact = 0
 	no_peer_id = 0
 	event = "started"
@@ -88,7 +101,7 @@ def getPeerList(metaDataPath):
 	# print decodedDict["announce-list"]
 
 	getRequest = ( torrentTrackerUrl +
-	"?info_hash=" + info_hash  +
+	"?info_hash=" + hashed_info_urlSafe  +
 	"&peer_id=" + peer_id  +
 	"&port=" + port +
 	"&uploaded=" + str(uploaded)  +
@@ -114,7 +127,11 @@ def getPeerList(metaDataPath):
 	
 	return peerList
 
-
-
+def hashMetaData(metaDataList):
+	sha1 = hashlib.sha1()
+	bencodedInfo = bencode.bencode(metaDataList["info"])
+	sha1.update(bencodedInfo)
+	hashed_info = sha1.digest()
+	return hashed_info
 
 main(sys.argv)
