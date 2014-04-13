@@ -2,6 +2,7 @@
 
 import bencode
 import hashlib
+import Queue
 import socket
 import sys
 import threading
@@ -15,64 +16,44 @@ def main(args):
 		sys.exit("\nInvalid syntax, please use the arguments 'arg1: torrent file path, arg2: finished file path")
 
 	metaDataPath = args[1]
+	destinationPath = args[2]
+
 	metaDataList = bencode.bdecode(open(metaDataPath, 'rb').read())
 
+	torrentBytes = int(metaDataList["info"]["length"])
+	pieceBytes = int(metaDataList["info"]["piece length"])
+
+
+	torrentData = TorrentWrapper(destinationPath, torrentBytes, pieceBytes)
+	pieceIndexQueue = Queue.Queue()
+	# print torrentData.numPieces
+	for index in range(0, torrentData.numPieces):
+		pieceIndexQueue.put(index)
+
+
+
 	hashed_info = hashMetaData(metaDataList)
-	peer_id = "abcdefghijklmonpqrst"
+	peer_id = "SA-SolaireOfAstora!!" #This is legal apparently
 	peerList = getPeerList(metaDataList, hashed_info, peer_id)
-	# print peerList
-	print "Peer 1: " + peerList[0][0]
 
-	handshake = chr(19)+"BitTorrent protocol"+chr(0)*8+hashed_info+peer_id
-	print handshake
+	for peer in peerList:
+		t = threading.Thread(target=peerThread, args=(torrentData, pieceIndexQueue))
+		t.start()
 
+	# print "Peer 1: " + peerList[0][0]
 
-	trackerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	trackerSocket.connect((peerList[0][0],int(peerList[0][1])))
-	trackerSocket.send(handshake)
-	print trackerSocket.recv(4096)
-	# while 1:
-	# 	connectionSocket, addr = serverSocket.accept()
-	# 	print trackerSocket.recv(4096)
-	# 	sentence = connectionSocket.recv(1024)
-	# 	print sentence
-
-	# getRequest = urllib.quote(getRequest)
-	# print getRequest
+	# #<pstrlen><pstr><reserved><info_hash><peer_id>
+	# handshake = chr(19)+"BitTorrent protocol"(+chr(0)*8)+hashed_info+peer_id
+	# print handshake
 
 
-	# serverPort = 6881
-	# serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	# serverSocket.bind(("",serverPort))
-	# serverSocket.listen(20)
-	
-	# 
-
-	# addrInfo = socket.getaddrinfo(torrentTrackerHostName, 80, 0, 0, socket.SOL_TCP)
-	# ipAddr = addrInfo[0][4][0]
-	# port = addrInfo[0][4][1]
-	# # print port
-	# # print ipAddr
-
-	# # print torrentTrackerHostName
 	# trackerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	# # s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
-	# trackerSocket.connect((torrentTrackerHostName, port))
-	# trackerSocket.send(getRequest)
-	# print trackerSocket.recv(4096)
-	# while 1:
-	# 	connectionSocket, addr = serverSocket.accept()
-	# 	print trackerSocket.recv(4096)
-	# 	sentence = connectionSocket.recv(1024)
-	# 	print sentence
-		
-
-		# capitalizedSentence = sentence.upper()
-		# connectionSocket.send(capitalizedSentence)
-	# connectionSocket.close()
+	# trackerSocket.connect((peerList[0][0],int(peerList[0][1])))
+	# trackerSocket.send(handshake)
 	# print trackerSocket.recv(4096)
 
-	# trackerSocket.close()
+
+
 
 def getPeerList(metaDataList, hashed_info, peer_id):
 
@@ -133,5 +114,19 @@ def hashMetaData(metaDataList):
 	sha1.update(bencodedInfo)
 	hashed_info = sha1.digest()
 	return hashed_info
+
+def peerThread(torrentData, queue):
+	while not queue.empty():
+		print(str(queue.get()) + "\n")
+
+class TorrentWrapper:
+	def __init__(self, filePath, length, pieceSize):
+		self.length = length
+		self.pieceSize = pieceSize
+		self.numPieces = length/pieceSize
+		self.pieces = [0]*self.numPieces
+		self.dataArray = bytearray(length)
+		self.filePath = filePath
+
 
 main(sys.argv)
