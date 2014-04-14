@@ -40,6 +40,8 @@ def main(args):
 
 	# messageGenerator = MessageGenerator()
 	handShake = MessageGenerator.handShake(hashed_info, peer_id)
+	keepAlive = MessageGenerator.keepAlive()
+	choke = MessageGenerator.choke()
 	# handShake = messageGenerator.keepAlive()
 	# print 
 
@@ -47,17 +49,60 @@ def main(args):
 	# 	t = threading.Thread(target=peerThread, args=(torrentData, pieceIndexQueue))
 	# 	t.start()
 
-	# print "Peer 1: " + peerList[0][0]
+	print "Peer 1: " + peerList[0][0]
 
 	# #<pstrlen><pstr><reserved><info_hash><peer_id>
 	# handshake = chr(19)+"BitTorrent protocol"(+chr(0)*8)+hashed_info+peer_id
 	# print handshake
 
 
-	# trackerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	# trackerSocket.connect((peerList[0][0],int(peerList[0][1])))
-	# trackerSocket.send(handshake)
-	# print trackerSocket.recv(4096)
+	trackerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	trackerSocket.connect((peerList[0][0],int(peerList[0][1])))
+	trackerSocket.send(handShake)
+	#These are enough bytes for the handshake
+	recievedHandshake = trackerSocket.recv(68) + "\n" 
+	print recievedHandshake
+	recievedPeerId =  recievedHandshake[-21:]
+	# trackerSocket.send(keepAlive)
+	# print repr(trackerSocket.recv(4096)) + "\n"
+	response = repr(trackerSocket.recv(1024)) + "\n"
+	print response
+	length = response[15:17]
+	# print length
+	print int(length, 16)
+	# print repr(int.fromhex(length))
+	# print repr(bytes.fromhex(response[19:21]))
+	if(int(length, 16) != 0):
+		def messageSwitch(x):
+			return {
+				0:'choke',
+				1:'unchoke',
+				2:'interested',
+				3:'not interested',
+				4:'have',
+				5:'bitfield',
+				6:'request',
+				7:'piece',
+				8:'cancel',
+			}.get(x, -1)
+			#keep-alive: <len=0000>
+			# choke: <len=0001><id=0>
+			# unchoke: <len=0001><id=1>
+			# interested: <len=0001><id=2>
+			# not interested: <len=0001><id=3>
+			# have: <len=0005><id=4><piece index>
+			# bitfield: <len=0001+X><id=5><bitfield>
+			# request: <len=0013><id=6><index><begin><length>
+			# piece: <len=0009+X><id=7><index><begin><block>
+			# cancel: <len=0013><id=8><index><begin><length>
+		message_id = int(response[19:21], 16)
+		print messageSwitch(message_id)
+
+	else:
+		print "This is a keep alive"
+	# trackerSocket.send(choke)
+	# response1 = trackerSocket.recv(4096)
+	# print response1
 
 
 
@@ -124,11 +169,15 @@ def hashMetaData(metaDataList):
 
 def peerThread(torrentData, queue, peer):
 
+    am_choking = 1
+    am_interested = 0
+    peer_choking = 1
+    peer_interested = 0
 
+    
 
-
-	while not queue.empty():
-		print(str(queue.get()) + "\n")
+	# while not queue.empty():
+	# 	print(str(queue.get()) + "\n")
 
 class TorrentWrapper:
 	def __init__(self, filePath, length, pieceSize):
@@ -199,6 +248,10 @@ class MessageGenerator:
 	@staticmethod
 	def cancel(index, begin, length):
 		return str(chr(0)*2) + str(chr(13)) + str(chr(8)) + str(index) + str(begin) + str(length)
+
+	# @staticmethod
+	# def decode(message):
+	# 	if(message)
 
 
 main(sys.argv)
