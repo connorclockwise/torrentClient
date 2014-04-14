@@ -12,6 +12,8 @@ import urllib2
 
 def main(args):
 
+
+
 	if len(args) != 3:
 		sys.exit("\nInvalid syntax, please use the arguments 'arg1: torrent file path, arg2: finished file path")
 
@@ -27,8 +29,8 @@ def main(args):
 	torrentData = TorrentWrapper(destinationPath, torrentBytes, pieceBytes)
 	pieceIndexQueue = Queue.Queue()
 	# print torrentData.numPieces
-	for index in range(0, torrentData.numPieces):
-		pieceIndexQueue.put(index)
+	# for index in range(0, torrentData.numPieces):
+	# 	pieceIndexQueue.put(index)
 
 
 
@@ -36,9 +38,14 @@ def main(args):
 	peer_id = "SA-SolaireOfAstora!!" #This is legal apparently
 	peerList = getPeerList(metaDataList, hashed_info, peer_id)
 
-	for peer in peerList:
-		t = threading.Thread(target=peerThread, args=(torrentData, pieceIndexQueue))
-		t.start()
+	# messageGenerator = MessageGenerator()
+	handShake = MessageGenerator.handShake(hashed_info, peer_id)
+	# handShake = messageGenerator.keepAlive()
+	# print 
+
+	# for peer in peerList:
+	# 	t = threading.Thread(target=peerThread, args=(torrentData, pieceIndexQueue))
+	# 	t.start()
 
 	# print "Peer 1: " + peerList[0][0]
 
@@ -115,7 +122,11 @@ def hashMetaData(metaDataList):
 	hashed_info = sha1.digest()
 	return hashed_info
 
-def peerThread(torrentData, queue):
+def peerThread(torrentData, queue, peer):
+
+
+
+
 	while not queue.empty():
 		print(str(queue.get()) + "\n")
 
@@ -124,9 +135,70 @@ class TorrentWrapper:
 		self.length = length
 		self.pieceSize = pieceSize
 		self.numPieces = length/pieceSize
-		self.pieces = [0]*self.numPieces
-		self.dataArray = bytearray(length)
+		self.pieces = []
 		self.filePath = filePath
+
+class MessageGenerator:
+
+	def __init__(self):
+		pass
+
+	# <pstrlen><pstr><reserved><info_hash><peer_id>
+	@staticmethod
+	def handShake(hashed_info, peer_id):
+		return chr(19)+"BitTorrent protocol"+(chr(0)*8)+hashed_info+peer_id
+
+	#message syntax:<length prefix><message ID><payload>
+
+	#keep-alive: <len=0000>
+	@staticmethod
+	def keepAlive():
+		return str(chr(0)*4)
+
+	# choke: <len=0001><id=0>
+	@staticmethod
+	def choke():
+		return str(chr(0)*3) + str(chr(1)) + str(chr(0))
+
+	# unchoke: <len=0001><id=1>
+	@staticmethod
+	def unChoke():
+		return str(chr(0)*3) + str(chr(1)) + str(chr(1))
+
+	#interested: <len=0001><id=2>
+	@staticmethod
+	def interested():
+		return str(chr(0)*3) + str(chr(1)) + str(chr(2))
+
+	# not interested: <len=0001><id=3>
+	@staticmethod
+	def notInterested():
+		return str(chr(0)*3) + str(chr(1)) + str(chr(3))
+
+	# have: <len=0005><id=4><piece index>
+	@staticmethod
+	def have(index):
+		return str(chr(0)*3) + str(chr(5)) + str(chr(4)) + str(index)
+
+	# bitfield: <len=0001+X><id=5><bitfield>
+	@staticmethod
+	def bitField(bitfield):
+		return str(chr(0)*3) + str(chr(1)) + str(chr(5)) + str(bitfield)
+
+	# request: <len=0013><id=6><index><begin><length>
+	@staticmethod
+	def request(index, begin, length):
+		return str(chr(0)*2) + str(chr(13)) + str(chr(6)) + str(index) + str(begin) + str(length)
+
+	# piece: <len=0009+X><id=7><index><begin><block>
+	@staticmethod
+	def piece(index, begin, length):
+		return str(chr(0)*3) + str(chr(9)) + str(chr(7)) + str(index) + str(begin) + str(length)
+
+	# cancel: <len=0013><id=8><index><begin><length>
+	@staticmethod
+	def cancel(index, begin, length):
+		return str(chr(0)*2) + str(chr(13)) + str(chr(8)) + str(index) + str(begin) + str(length)
 
 
 main(sys.argv)
