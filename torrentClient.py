@@ -67,8 +67,8 @@ def main(args):
 	# print repr(trackerSocket.recv(4096)) + "\n"
 	response = repr(trackerSocket.recv(1024))
 	print response
-	length = response[1:17]
-	print length.decode(length,"utf-8")
+	# length = response[1:17]
+	print response.decode("string_escape")
 	# print int(length, 16)
 	# print hex.decode(length,"utf-8")
 	# print length
