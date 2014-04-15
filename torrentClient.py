@@ -9,6 +9,19 @@ import threading
 import urllib
 import urllib2
 
+def FindRarestPieces(peerBitLists, pieceCount):
+    sortedPieces = []
+    for piece in range(pieceCount):
+	count = 0
+	for bitList in peerBitLists:
+	    if bitList[piece]:
+		count += 1
+	sortedPieces.append((count, piece))
+    sort(sortedPieces)
+    return map(lambda x: x[1], sortedList)
+		
+
+
 
 def main(args):
 
@@ -21,6 +34,7 @@ def main(args):
 	destinationPath = args[2]
 
 	metaDataList = bencode.bdecode(open(metaDataPath, 'rb').read())
+
 
 	torrentBytes = int(metaDataList["info"]["length"])
 	pieceBytes = int(metaDataList["info"]["piece length"])
@@ -35,7 +49,7 @@ def main(args):
 
 
 	hashed_info = hashMetaData(metaDataList)
-	peer_id = "SA-SolaireOfAstora!!" #This is legal apparently
+	peer_id = "RS-RemiliaScarlet!!!" #This is legal apparently
 	peerList = getPeerList(metaDataList, hashed_info, peer_id)
 
 	# messageGenerator = MessageGenerator()
@@ -174,7 +188,36 @@ def peerThread(torrentData, queue, peer):
     peer_choking = 1
     peer_interested = 0
 
-    
+fileCommandQueue = Queue.Queue()
+readPiecesQueue = Queue.Queue()
+fileCommandMutex = threading.Lock()
+readPiecesMutex = threading.Lock()
+fileCommandNotEmpty = threading.Condition()
+readPiecesNotEmpty = threading.Condition()
+
+def fileManagementThread(destinationPath, pieceSize):
+	targetFile = open(destinationPath, 'r+b')
+	while True:
+		fileCommandNotEmpty.acquire()
+		while len(fileCommandQueue) <= 0:
+			fileCommandNotEmpty.wait()
+		command = fileCommandQueue.pop()
+		fileCommandNotEmpty.release()
+		if len(command) > 1:
+			WritePiece(targetFile, command[0], pieceSize, command[1])
+		else:
+			piece = ReadPiece(targetFile, command[0], pieceSize)
+			readPiecesMutex.acquire()
+			readPiecesQueue.enqueue((command[0], piece))
+			readPiecesMutex.release()
+	
+def ReadPiece(targetFile, pieceNumber, pieceSize):
+	targetFile.seek(pieceNumber * pieceSize)
+	return targetFile.read(pieceSize)
+
+def WritePiece(targetFile, pieceNumber, pieceSize, data):
+	targetFile.seek(pieceNumber * pieceSize)
+	targetFile.write(str(data))
 
 	# while not queue.empty():
 	# 	print(str(queue.get()) + "\n")
