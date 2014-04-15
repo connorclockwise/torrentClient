@@ -79,44 +79,78 @@ def main(args):
 	recievedPeerId =  recievedHandshake[-21:]
 	# trackerSocket.send(keepAlive)
 	# print repr(trackerSocket.recv(4096)) + "\n"
-	response = repr(trackerSocket.recv(1024)) + "\n"
+	response = repr(trackerSocket.recv(1024))
 	print response
-	length = response[15:17]
+	length = response[1:17]
+	print length.decode(length,"utf-8")
+	# print int(length, 16)
+	# print hex.decode(length,"utf-8")
 	# print length
-	print int(length, 16)
+	# print int(length, 16)
 	# print repr(int.fromhex(length))
 	# print repr(bytes.fromhex(response[19:21]))
-	if(int(length, 16) != 0):
-		def messageSwitch(x):
-			return {
-				0:'choke',
-				1:'unchoke',
-				2:'interested',
-				3:'not interested',
-				4:'have',
-				5:'bitfield',
-				6:'request',
-				7:'piece',
-				8:'cancel',
-			}.get(x, -1)
-			#keep-alive: <len=0000>
-			# choke: <len=0001><id=0>
-			# unchoke: <len=0001><id=1>
-			# interested: <len=0001><id=2>
-			# not interested: <len=0001><id=3>
-			# have: <len=0005><id=4><piece index>
-			# bitfield: <len=0001+X><id=5><bitfield>
-			# request: <len=0013><id=6><index><begin><length>
-			# piece: <len=0009+X><id=7><index><begin><block>
-			# cancel: <len=0013><id=8><index><begin><length>
-		message_id = int(response[19:21], 16)
-		print messageSwitch(message_id)
+	
 
-	else:
-		print "This is a keep alive"
+
+	# def keepAlive(response):
+	# 	print("Keep Alive")
+	# def choke(response):
+	# 	print("choke")
+	# def unChoke(response):
+	# 	print("unChoke")
+	# def interested(response):
+	# 	print("interested")
+	# def notInterested():
+	# 	print("nonInterested")
+	# def have(response):
+	# 	print("have")
+	# def bitField(response):
+	# 	print("bitField")
+	# def request(response):
+	# 	print("unchoke")
+	# def piece(response):
+	# 	print("unchoke")
+	# def cancel(response):
+	# 	print("unchoke")
+
+
+
+	# def messageSwitch(response):
+
+	# 	# message_id = int(response[19:21], 16)
+
+	# 	if(int(length, 16) != 0):
+	# 		return {
+	# 			0:choke,
+	# 			1:unChoke,
+	# 			2:interested,
+	# 			3:notInterested,
+	# 			4:have,
+	# 			5:bitField,
+	# 			6:request,
+	# 			7:piece,
+	# 			8:cancel,
+	# 		}.get(message_id, -1)
+	# 		#keep-alive: <len=0000>
+	# 		# choke: <len=0001><id=0>
+	# 		# unchoke: <len=0001><id=1>
+	# 		# interested: <len=0001><id=2>
+	# 		# not interested: <len=0001><id=3>
+	# 		# have: <len=0005><id=4><piece index>
+	# 		# bitfield: <len=0001+X><id=5><bitfield>
+	# 		# request: <len=0013><id=6><index><begin><length>
+	# 		# piece: <len=0009+X><id=7><index><begin><block>
+	# 		# cancel: <len=0013><id=8><index><begin><length>
+			
+	# 	else:
+	# 		return keepAlive
+
+	
+	# messageSwitch(response)(response)
+
 	# trackerSocket.send(choke)
 	# response1 = trackerSocket.recv(4096)
-	# print response1
+ # 	print response1
 
 
 
