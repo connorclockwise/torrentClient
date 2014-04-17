@@ -35,12 +35,13 @@ def main(args):
 	metaDataPath = args[1]
 	destinationPath = args[2]
 
-	metaDataList = bencode.bdecode(open(metaDataPath, 'rb').read())
+	metaDataList = bencode.bdecode(open(metaDataPath, 'rwb').read())
 
 
 	torrentBytes = int(metaDataList["info"]["length"])
 	pieceBytes = int(metaDataList["info"]["piece length"])
-
+	fileThread = threading.Thread(name = 'File Thread', target = fileManagementThread, args = (destinationPath, pieceBytes))
+	fileThread.start()
 
 	torrentData = TorrentWrapper(destinationPath, torrentBytes, pieceBytes)
 	pieceIndexQueue = Queue.Queue()
@@ -260,34 +261,58 @@ def peerThread(torrentData, queue, peer):
     peer_choking = 1
     peer_interested = 0
 
+
+def WritePiece(pieceNumber, pieceData):
+	fileCommandMutex.acquire()
+	fileCommandQueue.enqueue((pieceNumber, pieceData))
+	fileCommandNotEmpty.notify()
+	fileCommandMutex.release()
+
+def ReadPiece(pieceNumber):
+	fileCommandMutex.acquire()
+	fileCommandQueue.enqueue((pieceNumber))
+	fileCommandMutex.release()
+	while True:
+		readPiecesNotEmpty.acquire()
+		while len(readPiecesQueue) <= 0:
+			readPiecesNotEmpty.wait()
+		readPiecesNotEmpty.release()
+		readPiecesMutex.acquire()
+		mapped = [x[1] for x in readPiecesQueue]
+		if pieceNumber in mapped:
+			index = mapped.index(pieceNumber)			
+			piece = readPiecesQueue[index]
+			del readPiecesQueue[index]
+			return piece
+
 fileCommandQueue = Queue.Queue()
-readPiecesQueue = Queue.Queue()
+readPiecesQueue = []
 fileCommandMutex = threading.Lock()
 readPiecesMutex = threading.Lock()
 fileCommandNotEmpty = threading.Condition()
 readPiecesNotEmpty = threading.Condition()
 
 def fileManagementThread(destinationPath, pieceSize):
-	targetFile = open(destinationPath, 'r+b')
+	targetFile = open(destinationPath, 'w+')
 	while True:
 		fileCommandNotEmpty.acquire()
-		while len(fileCommandQueue) <= 0:
+		while fileCommandQueue.qsize() <= 0:
 			fileCommandNotEmpty.wait()
 		command = fileCommandQueue.pop()
 		fileCommandNotEmpty.release()
 		if len(command) > 1:
-			WritePiece(targetFile, command[0], pieceSize, command[1])
+			WritePieceToFile(targetFile, command[0], pieceSize, command[1])
 		else:
-			piece = ReadPiece(targetFile, command[0], pieceSize)
+			piece = ReadPieceFromFile(targetFile, command[0], pieceSize)
 			readPiecesMutex.acquire()
-			readPiecesQueue.enqueue((command[0], piece))
+			readPiecesQueue.append((command[0], piece))
 			readPiecesMutex.release()
 	
-def ReadPiece(targetFile, pieceNumber, pieceSize):
+def ReadPieceFromFile(targetFile, pieceNumber, pieceSize):
 	targetFile.seek(pieceNumber * pieceSize)
 	return targetFile.read(pieceSize)
 
-def WritePiece(targetFile, pieceNumber, pieceSize, data):
+def WritePieceToFile(targetFile, pieceNumber, pieceSize, data):
 	targetFile.seek(pieceNumber * pieceSize)
 	targetFile.write(str(data))
 
