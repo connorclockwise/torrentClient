@@ -1,10 +1,12 @@
 #!/usr/bin/python
 
 import bencode
+import binascii
 import hashlib
 import Queue
 import socket
 import sys
+import struct
 import threading
 import urllib
 import urllib2
@@ -79,10 +81,46 @@ def main(args):
 	recievedPeerId =  recievedHandshake[-21:]
 	# trackerSocket.send(keepAlive)
 	# print repr(trackerSocket.recv(4096)) + "\n"
-	response = repr(trackerSocket.recv(1024))
-	print response
+	response = trackerSocket.recv(1024)
+	stringResponse = repr(response)
+	print response + "\n"
+	print stringResponse + "\n"
+	# print len(response[:8])
+	messageLength = struct.unpack(">I", response[:4])
+	messageId = struct.unpack(">B", response[4])
+	messageBody = response[5:]
+	print messageLength
+	print messageId
+	print torrentData.numPieces
+	messageByteArray = bytearray(messageBody)
+	print repr(messageByteArray)
+	print len(messageByteArray) + 1
+	if( len(messageByteArray) != 1473):
+		print bin(messageByteArray[0])
+		bitarray = {}
+		index = 0
+		for byte in messageByteArray:
+			for bitIndex in range(0,8):
+				bitmask = int('0b10000000', 2) >> bitIndex
+				# print(bin(bitmask))
+				# print(bin(messageByteArray[0] &  bitmask))
+				bitarray[index] = ((byte &  bitmask) >> (7 - bitIndex))
+				# print(bin(((byte &  bitmask) >> (7 - bitIndex))))
+				# print index
+				index+=1
+
+		print bitarray
+
+	# print binascii.unhexlify(messageByteArray) 
+	# fixedResponse = (response[1:-1] + "\n").replace("\\x","")
+	# print repr(fixedResponse)
+	# print struct.unpack(">l", stringResponse[:8] )
+	# fixedResponse = (response[1:-1] + "\n").replace("\\x","")
+	# print str(list(bytearray(fixedResponse)))
+	# print repr(bytearray(fixedResponse))
+	# print (bytearray(fixedResponse)[:8])
 	# length = response[1:17]
-	print response.decode("string_escape")
+	# print response.encode("unicode_internal")
 	# print int(length, 16)
 	# print hex.decode(length,"utf-8")
 	# print length
