@@ -83,34 +83,7 @@ def main(args):
 	# trackerSocket.send(keepAlive)
 	# print repr(trackerSocket.recv(4096)) + "\n"
 	response = trackerSocket.recv(1024)
-	stringResponse = repr(response)
-	print response + "\n"
-	print stringResponse + "\n"
-	# print len(response[:8])
-	messageLength = struct.unpack(">I", response[:4])
-	messageId = struct.unpack(">B", response[4])
-	messageBody = response[5:]
-	print messageLength
-	print messageId
-	print torrentData.numPieces
-	messageByteArray = bytearray(messageBody)
-	print repr(messageByteArray)
-	print len(messageByteArray) + 1
-	if( len(messageByteArray) != 1473):
-		print bin(messageByteArray[0])
-		bitarray = {}
-		index = 0
-		for byte in messageByteArray:
-			for bitIndex in range(0,8):
-				bitmask = int('0b10000000', 2) >> bitIndex
-				# print(bin(bitmask))
-				# print(bin(messageByteArray[0] &  bitmask))
-				bitarray[index] = ((byte &  bitmask) >> (7 - bitIndex))
-				# print(bin(((byte &  bitmask) >> (7 - bitIndex))))
-				# print index
-				index+=1
-
-		print bitarray
+	decodeMessage(response)
 
 	# print binascii.unhexlify(messageByteArray) 
 	# fixedResponse = (response[1:-1] + "\n").replace("\\x","")
@@ -389,9 +362,45 @@ class MessageGenerator:
 	def cancel(index, begin, length):
 		return str(chr(0)*2) + str(chr(13)) + str(chr(8)) + str(index) + str(begin) + str(length)
 
-	# @staticmethod
-	# def decode(message):
-	# 	if(message)
+def decodeMessage(message):
+	stringResponse = repr(message)
+	if (message > 0):
+		# print message + "\n"
+
+		# print len(response[:8])
+		messageLength = struct.unpack(">I", message[:4])[0]
+		print messageLength
+		if(messageLength == 0):
+			return ("keepAlive")
+		else:
+			messageId = struct.unpack(">B", message[4])[0]
+			messageBody = message[5:]
+			# print messageLength
+			print messageId
+			# print torrentData.numPieces
+
+			messageByteArray = bytearray(messageBody)
+			# print repr(messageByteArray)
+
+			# print len(messageByteArray) + 1
+			if( len(messageByteArray) != 0):
+				# print bin(messageByteArray[0])
+				bitarray = {}
+				index = 0
+				for byte in messageByteArray:
+					for bitIndex in range(0,8):
+						bitmask = int('0b10000000', 2) >> bitIndex
+						# print(bin(bitmask))
+						# print(bin(messageByteArray[0] &  bitmask))
+						if(((byte &  bitmask) >> (7 - bitIndex)) == 1):
+							bitarray[index] = True
+						else:
+							bitarray[index] = False
+						# print(bin(((byte &  bitmask) >> (7 - bitIndex))))
+						# print index
+						index+=1
+	else:
+			print("bad message")
 
 
 main(sys.argv)
