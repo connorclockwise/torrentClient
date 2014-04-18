@@ -11,6 +11,7 @@ import threading
 import urllib
 import urllib2
 
+
 def FindRarestPieces(peerBitLists, pieceCount):
     sortedPieces = []
     for piece in range(pieceCount):
@@ -40,8 +41,8 @@ def main(args):
 
 	torrentBytes = int(metaDataList["info"]["length"])
 	pieceBytes = int(metaDataList["info"]["piece length"])
-	fileThread = threading.Thread(name = 'File Thread', target = fileManagementThread, args = (destinationPath, pieceBytes))
-	fileThread.start()
+	# fileThread = threading.Thread(name = 'File Thread', target = fileManagementThread, args = (destinationPath, pieceBytes))
+	# fileThread.start()
 
 	torrentData = TorrentWrapper(destinationPath, torrentBytes, pieceBytes)
 	pieceIndexQueue = Queue.Queue()
@@ -83,7 +84,12 @@ def main(args):
 	# trackerSocket.send(keepAlive)
 	# print repr(trackerSocket.recv(4096)) + "\n"
 	response = trackerSocket.recv(1024)
-	decodeMessage(response)
+	decodedTuple = decodeMessage(response, torrentData)
+	print decodedTuple
+	print len(decodedTuple[1])
+	print torrentData.numPieces
+	print repr(MessageGenerator.request(0,0,torrentData.pieceSize))
+	# trackerSocket.close()
 
 	# print binascii.unhexlify(messageByteArray) 
 	# fixedResponse = (response[1:-1] + "\n").replace("\\x","")
@@ -315,57 +321,75 @@ class MessageGenerator:
 	#keep-alive: <len=0000>
 	@staticmethod
 	def keepAlive():
-		return str(chr(0)*4)
+		return "\x00\x00\x00\x00"
 
 	# choke: <len=0001><id=0>
 	@staticmethod
 	def choke():
-		return str(chr(0)*3) + str(chr(1)) + str(chr(0))
+		return "\x00\x00\x00\x01\x00"
 
 	# unchoke: <len=0001><id=1>
 	@staticmethod
 	def unChoke():
-		return str(chr(0)*3) + str(chr(1)) + str(chr(1))
+		return "\x00\x00\x00\x01\x01"
 
 	#interested: <len=0001><id=2>
 	@staticmethod
 	def interested():
-		return str(chr(0)*3) + str(chr(1)) + str(chr(2))
+		return "\x00\x00\x00\x01\x02"
 
 	# not interested: <len=0001><id=3>
 	@staticmethod
 	def notInterested():
-		return str(chr(0)*3) + str(chr(1)) + str(chr(3))
+		return "\x00\x00\x00\x01\x03"
 
 	# have: <len=0005><id=4><piece index>
 	@staticmethod
 	def have(index):
-		return str(chr(0)*3) + str(chr(5)) + str(chr(4)) + str(index)
+		return "\x00\x00\x00\x05\x04" + struct.pack(">I", index)
 
 	# bitfield: <len=0001+X><id=5><bitfield>
 	@staticmethod
-	def bitField(bitfield):
-		return str(chr(0)*3) + str(chr(1)) + str(chr(5)) + str(bitfield)
+	def bitField(bitarray):
+		tempShort = 0;
+		bitString = ""
+		index = 0
+		for bit in bitarray:
+			bitOffset = index % 8
+			tempShort = (int(bit) >> bitOffset) | tempShort
+			if(index % 8 == 7):
+				bitString = bitString + struct.pack("B", tempShort)
+				tempShort = 0
+			index+=1
+		return bitString
 
 	# request: <len=0013><id=6><index><begin><length>
 	@staticmethod
 	def request(index, begin, length):
-		return str(chr(0)*2) + str(chr(13)) + str(chr(6)) + str(index) + str(begin) + str(length)
+		return ("\x00\x00\x00\x0D\x06" + 
+				struct.pack(">I", index) +
+				struct.pack(">I", begin) +
+				struct.pack(">I", length))
 
 	# piece: <len=0009+X><id=7><index><begin><block>
 	@staticmethod
-	def piece(index, begin, length):
-		return str(chr(0)*3) + str(chr(9)) + str(chr(7)) + str(index) + str(begin) + str(length)
-
+	def piece(index, begin, block):
+		return (struct.pack(">I", 9 + sys.getsizeof(block) +
+				"\x07" + 
+				struct.pack(">I", index) +
+				struct.pack(">I", begin) +
+				block))
 	# cancel: <len=0013><id=8><index><begin><length>
 	@staticmethod
 	def cancel(index, begin, length):
-		return str(chr(0)*2) + str(chr(13)) + str(chr(8)) + str(index) + str(begin) + str(length)
-
-def decodeMessage(message):
+		return ("\x00\x00\x00\x0D\x04" + 
+				struct.pack(">I", index) +
+				struct.pack(">I", begin) +
+				struct.pack(">I", length))
+def decodeMessage(message, torrentData):
 	stringResponse = repr(message)
-	if (message > 0):
-		# print message + "\n"
+	if (message > 1):
+		# print stringResponse + "\n"
 
 		# print len(response[:8])
 		messageLength = struct.unpack(">I", message[:4])[0]
@@ -373,32 +397,56 @@ def decodeMessage(message):
 		if(messageLength == 0):
 			return ("keepAlive")
 		else:
+			
+			# print repr(testmessage)
+			print repr(message)
 			messageId = struct.unpack(">B", message[4])[0]
-			messageBody = message[5:]
-			# print messageLength
-			print messageId
-			# print torrentData.numPieces
-
-			messageByteArray = bytearray(messageBody)
-			# print repr(messageByteArray)
-
-			# print len(messageByteArray) + 1
-			if( len(messageByteArray) != 0):
-				# print bin(messageByteArray[0])
+			if(messageId == 0):
+				return ("choke",)
+			elif(messageId == 1):
+				return ("unchoke",)
+			elif(messageId == 2):
+				return ("interested",)
+			elif(messageId == 3):
+				return ("notinterested",)
+			elif(messageId == 4):
+				pieceIndex = struct.unpack(">I", message[5:])[0]
+				return ("have",pieceIndex)
+			elif(messageId == 5):
+				messageBody = message[5:6+messageLength]
+				messageByteArray = bytearray(messageBody)
 				bitarray = {}
-				index = 0
-				for byte in messageByteArray:
-					for bitIndex in range(0,8):
-						bitmask = int('0b10000000', 2) >> bitIndex
-						# print(bin(bitmask))
-						# print(bin(messageByteArray[0] &  bitmask))
-						if(((byte &  bitmask) >> (7 - bitIndex)) == 1):
-							bitarray[index] = True
-						else:
-							bitarray[index] = False
-						# print(bin(((byte &  bitmask) >> (7 - bitIndex))))
-						# print index
-						index+=1
+				bitlist = [False]*torrentData.numPieces
+				for index in range(0, torrentData.numPieces - 1):
+					bitarray[index] = False 
+				if( len(messageByteArray) != 0):
+					index = 0
+					for byte in messageByteArray:
+						for bitIndex in range(0,8):
+							bitmask = int('0b10000000', 2) >> bitIndex
+							if(((byte &  bitmask) >> (7 - bitIndex)) == 1):
+								bitarray[index] = True
+							index+=1
+					bitlist = list(bitarray.values())
+				return ("bitfield", bitlist)
+			# request: <len=0013><id=6><index><begin><length>	
+			elif(messageId == 6):
+				pieceIndex = struct.unpack(">I", message[5:9])[0]
+				begin = struct.unpack(">I", message[9:13])[0]
+				length = struct.unpack(">I", message[13:17])[0]
+				return ("request",pieceIndex, begin, length)
+			elif(messageId == 7):
+				pieceIndex = struct.unpack(">I", message[5:9])[0]
+				begin = struct.unpack(">I", message[9:13])[0]
+				block = message[13:]
+				return ("piece",pieceIndex, begin, block)
+			elif(messageId == 8):
+				pieceIndex = struct.unpack(">I", message[5:9])[0]
+				begin = struct.unpack(">I", message[9:13])[0]
+				length = struct.unpack(">I", message[13:17])[0]
+				return ("cancel",pieceIndex, begin, length)
+
+
 	else:
 			print("bad message")
 
