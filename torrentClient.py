@@ -57,135 +57,16 @@ def main(args):
 
 	# print pieceIndexQueue
 
-	handShake = MessageGenerator.handShake(hashed_info, peer_id)
+	
 	keepAlive = MessageGenerator.keepAlive()
 	choke = MessageGenerator.choke()
 
-	# for peer in peerList:
-	# 	t = threading.Thread(target=peerThread, args=(torrentData, pieceIndexQueue))
-	# 	t.start()
+	for peer in peerList:
+		t = threading.Thread(target=peerThread, args=(torrentData, peer, hashed_info, peer_id))
+		t.start()
+		break
 
-	print "Peer 1: " + peerList[0][0]
-
-	peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	peerSocket.connect((peerList[0][0],int(peerList[0][1])))
-	peerSocket.send(handShake)
-	peerSocket.settimeout(60.0)
-
-	#These are enough bytes for the handshake
-	recievedHandshake = peerSocket.recv(68) + "\n" 
-	print "Handshake: " + recievedHandshake
-	recievedPeerId =  recievedHandshake[-21:]
-
-	am_choking = True
-	am_interested = False
-	peer_choking = True
-	peer_interested = False
-
-	responseBuffer = ""
-	remainingResponse = 0
-	responseQueue = []
-	pieceList = []
-
-	unchoke = MessageGenerator.unChoke()
-	peerSocket.send(unchoke)
-	interested = MessageGenerator.interested()
-	peerSocket.send(interested)
-	am_choking = True
-	am_interested = True
-	sentRequest = False
-	timeout = False
-
-	targetFile = open(destinationPath, 'w+')
-
-	while not timeout:
-
-		response = ""
-		try:
-			response = peerSocket.recv(torrentData.blockSize + 5)
-		except:
-			print("Socket timeout")
-			timeout = True
-
-		responseLength = -1
-		if(len(response[:4]) == 4):
-			responseLength = struct.unpack(">I",response[:4])[0]
-
-
-		if(len(response) > 1):
-			# print "Response: " + repr(response)
-			# print "Predicted length: " + str(responseLength)
-			# print "Actual length: " + str(len(response[4:]))
-			# print "Response Buffer: " + repr(responseBuffer)
-			# print "Remaining length: " + str(remainingResponse)
-
-			if sentRequest:
-				print "Receiving piece"
-				WritePiece(0, response)
-				# decodeMessage(responseBuffer, torrentData, responseBuffer,responseQueue)
-				
-			else:
-				if responseBuffer:
-					if remainingResponse == 0:
-						print "Decoding buffer"
-						decodeMessage(responseBuffer, torrentData, responseBuffer,responseQueue)
-						response == 0
-					elif remainingResponse < len(response):
-						print "Splitting buffer"
-						decodeMessage(responseBuffer + response, torrentData, responseBuffer,responseQueue)
-						responselength = struct.unpack(">I",responseBuffer[:4])[0]
-					elif remainingResponse > len(response):
-						responseBuffer += response
-						responselength = remainingResponse - len(response[4:])
-					elif remainingResponse == len(response):
-						responseBuffer += response
-						responselength = remainingResponse - len(response[4:])
-				else:
-					if(responseLength == len(response[4:])):
-						print "Length exactly as expected"
-						decodeMessage(response, torrentData, responseBuffer,responseQueue)
-					elif(responseLength > len(response[4:])):
-						print "Length shorter than as expected"
-						responseBuffer += response
-						remainingResponse = responseLength - len(response[4:])
-						print remainingResponse
-					elif(responseLength < len(response[4:])):
-						print "Length greater than as expected"
-						decodeMessage(response, torrentData, responseBuffer,responseQueue)
-
-		while responseQueue:
-			decodedResponse = responseQueue.pop()
-
-			if(decodedResponse[0] == "choke"):
-				peer_choking = True
-			elif(decodedResponse[0] == "unchoke"):
-				peer_choking = False
-			elif(decodedResponse[0] == "have"):
-				bitList[decodedResponse[1]] = True
-			elif(decodedResponse[0] == "bitfield"):
-				bitList = decodedResponse[1]
-			elif(decodedResponse[0] == "piece"):
-				print("We are receiving a piece")
-				writePiece(decodedResponse[1], decodedResponse[3])
-
-			if(decodedResponse[0] != "badmessage"):
-				print decodedResponse[0]
-
-		if not peer_choking and not sentRequest:
-			print("not being choked, we can request a piece now")
-			print("requesting first piece")
-			print("piece size: " + str(16384))
-			
-			requestPiece = MessageGenerator.request(0,0,16384)
-			peerSocket.send(requestPiece)
-			sentRequest = True
-
-			
-
-
-		
-
-
+	# print "Peer 1: " + peerList[0][0]
 
 	# response = peerSocket.recv(1024)
 	# print "First response: " + repr(response)
@@ -268,12 +149,119 @@ def hashMetaData(metaDataList):
 	hashed_info = sha1.digest()
 	return hashed_info
 
-def peerThread(torrentData, queue, peer):
+def peerThread(torrentData, peer, hashed_info, peer_id):
 
-    am_choking = 1
-    am_interested = 0
-    peer_choking = 1
-    peer_interested = 0
+	peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	peerSocket.connect((peer[0],int(peer[1])))
+	handShake = MessageGenerator.handShake(hashed_info, peer_id)
+	peerSocket.send(handShake)
+	peerSocket.settimeout(60.0)
+
+	#These are enough bytes for the handshake
+	recievedHandshake = peerSocket.recv(68) + "\n" 
+	print "Handshake: " + recievedHandshake
+	recievedPeerId =  recievedHandshake[-21:]
+
+	am_choking = True
+	am_interested = False
+	peer_choking = True
+	peer_interested = False
+
+	responseBuffer = ""
+	remainingResponse = 0
+	responseQueue = []
+	pieceList = []
+
+	unchoke = MessageGenerator.unChoke()
+	peerSocket.send(unchoke)
+	interested = MessageGenerator.interested()
+	peerSocket.send(interested)
+	am_choking = True
+	am_interested = True
+	sentRequest = False
+	timeout = False
+
+	while not timeout:
+
+		response = ""
+		try:
+			response = peerSocket.recv(torrentData.blockSize + 5)
+		except:
+			print("Socket timeout")
+			timeout = True
+
+		responseLength = -1
+		if(len(response[:4]) == 4):
+			responseLength = struct.unpack(">I",response[:4])[0]
+
+
+		if(len(response) > 1):
+			# print "Response: " + repr(response)
+			# print "Predicted length: " + str(responseLength)
+			# print "Actual length: " + str(len(response[4:]))
+			# print "Response Buffer: " + repr(responseBuffer)
+			# print "Remaining length: " + str(remainingResponse)
+
+			# if sentRequest:
+			# 	print "Receiving piece"
+			# 	# WritePiece(0, response)
+			# 	decodeMessage(responseBuffer, torrentData, responseBuffer,responseQueue)
+				
+			
+			if responseBuffer:
+				if remainingResponse == 0:
+					print "Decoding buffer"
+					decodeMessage(responseBuffer, torrentData, responseBuffer,responseQueue)
+					response == 0
+				elif remainingResponse < len(response):
+					print "Splitting buffer"
+					decodeMessage(responseBuffer + response, torrentData, responseBuffer,responseQueue)
+					responselength = struct.unpack(">I",responseBuffer[:4])[0]
+				elif remainingResponse > len(response):
+					print "Receiving additional messages to buffer"
+					responseBuffer += response
+					responselength = remainingResponse - len(response[4:])
+			else:
+				if(responseLength == len(response[4:])):
+					print "Length exactly as expected"
+					decodeMessage(response, torrentData, responseBuffer,responseQueue)
+				elif(responseLength > len(response[4:])):
+					print "Length shorter than as expected"
+					responseBuffer += response
+					remainingResponse = responseLength - len(response[4:])
+					print remainingResponse
+				elif(responseLength < len(response[4:])):
+					print "Length greater than as expected"
+					decodeMessage(response, torrentData, responseBuffer,responseQueue)
+		else:
+			print "we have gone over buffer"
+
+		while responseQueue:
+			decodedResponse = responseQueue.pop()
+
+			if(decodedResponse[0] == "choke"):
+				peer_choking = True
+			elif(decodedResponse[0] == "unchoke"):
+				peer_choking = False
+			elif(decodedResponse[0] == "have"):
+				bitList[decodedResponse[1]] = True
+			elif(decodedResponse[0] == "bitfield"):
+				bitList = decodedResponse[1]
+			elif(decodedResponse[0] == "piece"):
+				print("We are receiving a piece")
+				writePiece(decodedResponse[1], decodedResponse[3])
+
+			if(decodedResponse[0] != "badmessage"):
+				print decodedResponse[0]
+
+		if not peer_choking and not sentRequest:
+			print("not being choked, we can request a piece now")
+			print("requesting first piece")
+			print("piece size: " + str(16384))
+			
+			requestPiece = MessageGenerator.request(0,0,16384)
+			peerSocket.send(requestPiece)
+			sentRequest = True
 
 
 def WritePiece(pieceNumber, pieceData):
