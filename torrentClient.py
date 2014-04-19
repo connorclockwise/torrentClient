@@ -61,15 +61,9 @@ def main(args):
 	keepAlive = MessageGenerator.keepAlive()
 	choke = MessageGenerator.choke()
 
-<<<<<<< HEAD
 	for peer in peerList:
 		t = threading.Thread(target=peerThread, args=(torrentData, peer, hashed_info, peer_id))
 		t.start()
-		break
-=======
-	# for peer in peerList:
-	# 	t = threading.Thread(target=peerThread, args=(torrentData, pieceIndexQueue))
-	# 	t.start()
 
 	print "Peer 1: " + peerList[0][0]
 
@@ -185,13 +179,6 @@ def main(args):
 			requestPiece = MessageGenerator.request(0,0,16384)
 			peerSocket.send(requestPiece)
 			sentRequest = True
-
-			
-
-
-		
-
->>>>>>> e091995400f7c0c4da41661a0642cdb7a6d1d64e
 
 	# print "Peer 1: " + peerList[0][0]
 
