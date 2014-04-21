@@ -51,6 +51,7 @@ def main(args):
 	hashed_info = hashData(bencode.bencode(metaDataList["info"]))
 	peer_id = "RS-RemiliaScarlet!!!" #This is legal apparently
 	peerList = getPeerList(metaDataList, hashed_info, peer_id)
+	pieceHashs = struct.unpack(metaDataList["info"]["pieces"])
 
 	pieceIndexQueue = []
 
