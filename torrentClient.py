@@ -41,7 +41,7 @@ def main(args):
 
 	torrentBytes = int(metaDataList["info"]["length"])
 	pieceBytes = int(metaDataList["info"]["piece length"])
-	fileThread = threading.Thread(name = 'File Thread', target = fileManagementThread, args = (destinationPath, pieceBytes, 2 ** 14))
+	fileThread = threading.Thread(name = 'File Thread', target = fileManagementThread, args = (destinationPath, pieceBytes))
 	fileThread.start()
 
 	torrentData = TorrentWrapper(destinationPath, torrentBytes, pieceBytes)
@@ -183,7 +183,7 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 	print "This is my current index i'm trying to get: " + str(currentPiece)
 	
 	if not pieceIndexQueue:
-			lastPiece = True
+		lastPiece = True
 
 	for blockIndex in range(0, 32):
 		blockQueue.insert(0, blockIndex)
@@ -291,17 +291,17 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 		pieceIndexQueue.append(currentPiece)
 
 
-def WritePiece(pieceNumber, blockNumber, pieceData):
+def WritePiece(pieceNumber, pieceData):
 	fileCommandNotEmpty.acquire()
-	print "Requesting Write of Piece #", pieceNumber, " Block #", blockNumber
-	fileCommandQueue.put((pieceNumber, blockNumber, pieceData))
+	print "Requesting Write of Piece #", pieceNumber
+	fileCommandQueue.put((pieceNumber, pieceData))
 	fileCommandNotEmpty.notify()
 	fileCommandNotEmpty.release()
 
-def ReadPiece(pieceNumber, blockNumber):
+def ReadPiece(pieceNumber):
 	fileCommandMutex.acquire()
-	print "Requesting Read of Piece #", pieceNumber, " Block #", blockNumber
-	fileCommandQueue.put((pieceNumber, blockNumber))
+	print "Requesting Read of Piece #", pieceNumber
+	fileCommandQueue.put((pieceNumber))
 	fileCommandMutex.release()
 	while True:
 		readPiecesNotEmpty.acquire()
@@ -309,8 +309,8 @@ def ReadPiece(pieceNumber, blockNumber):
 			readPiecesNotEmpty.wait()
 		readPiecesNotEmpty.release()
 		readPiecesMutex.acquire()
-		mapped = [(x[0], x[1]) for x in readPiecesQueue]
-		if (pieceNumber, blockNumber) in mapped:
+		mapped = [x[0] for x in readPiecesQueue]
+		if pieceNumber in mapped:
 			index = mapped.index(pieceNumber)			
 			piece = readPiecesQueue[index]
 			del readPiecesQueue[index]
@@ -323,7 +323,7 @@ readPiecesMutex = threading.Lock()
 fileCommandNotEmpty = threading.Condition(fileCommandMutex)
 readPiecesNotEmpty = threading.Condition(readPiecesMutex)
 
-def fileManagementThread(destinationPath, pieceSize, blockSize):
+def fileManagementThread(destinationPath, pieceSize):
 	targetFile = open(destinationPath, 'wb+')
 	while True:
 		fileCommandNotEmpty.acquire()
@@ -333,20 +333,20 @@ def fileManagementThread(destinationPath, pieceSize, blockSize):
 		# print ("Command: ",command)
 		fileCommandNotEmpty.release()
 		if len(command) > 1:
-			WriteBlockToFile(targetFile, command[0], command[1], pieceSize, blockSize, command[2])
+			WriteBlockToFile(targetFile, command[0], pieceSize, blockSize, command[2])
 		else:
-			block = ReadBlockFromFile(targetFile, command[0], command[1], pieceSize, blockSize)
+			block = ReadBlockFromFile(targetFile, command[0], pieceSize, blockSize)
 			readPiecesNotEmpty.acquire()
-			readPiecesQueue.append((command[0], command[1], piece))
+			readPiecesQueue.append((command[0], piece))
 			readPiecesNotEmpty.notify()
 			readPiecesNotEmpty.release()
 	
-def ReadBlockFromFile(targetFile, pieceNumber, blockNumber, pieceSize, blockSize):
-	targetFile.seek(pieceNumber * pieceSize + blockNumber * blockSize)
+def ReadPieceFromFile(targetFile, pieceNumber, pieceSize):
+	targetFile.seek(pieceNumber * pieceSize)
 	return targetFile.read(pieceSize)
 
-def WriteBlockToFile(targetFile, pieceNumber, blockNumber, pieceSize, blockSize, data):
-	targetFile.seek(pieceNumber * pieceSize + blockNumber * blockSize)
+def WritePieceToFile(targetFile, pieceNumber, pieceSize, data):
+	targetFile.seek(pieceNumber * pieceSize)
 	# print "this is the data being written " + data
 	targetFile.write(bytearray(data))
 	# targetFile.close()
