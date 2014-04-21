@@ -324,8 +324,8 @@ fileCommandNotEmpty = threading.Condition(fileCommandMutex)
 readPiecesNotEmpty = threading.Condition(readPiecesMutex)
 
 def fileManagementThread(destinationPath, pieceSize):
-	targetFile = open(destinationPath, 'wb+')
 	while True:
+		targetFile = open(destinationPath, 'wb+')
 		fileCommandNotEmpty.acquire()
 		while fileCommandQueue.qsize() <= 0:
 			fileCommandNotEmpty.wait()
@@ -333,13 +333,14 @@ def fileManagementThread(destinationPath, pieceSize):
 		# print ("Command: ",command)
 		fileCommandNotEmpty.release()
 		if len(command) > 1:
-			WritePieceToFile(targetFile, command[0], pieceSize, blockSize, command[2])
+			WritePieceToFile(targetFile, command[0], pieceSize, command[1])
 		else:
-			block = ReadBlockFromFile(targetFile, command[0], pieceSize, blockSize)
+			block = ReadPieceFromFile(targetFile, command[0], pieceSize)
 			readPiecesNotEmpty.acquire()
 			readPiecesQueue.append((command[0], piece))
 			readPiecesNotEmpty.notify()
 			readPiecesNotEmpty.release()
+		targetFile.close()
 	
 def ReadPieceFromFile(targetFile, pieceNumber, pieceSize):
 	targetFile.seek(pieceNumber * pieceSize)
