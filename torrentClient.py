@@ -24,6 +24,7 @@ def FindRarestPieces(peerBitLists, pieceCount):
 		
 
 
+finished = False
 
 def main(args):
 
@@ -52,7 +53,7 @@ def main(args):
 
 	pieceIndexQueue = []
 
-	for index in range(0, torrentData.numPieces):
+	for index in range(torrentData.numPieces, 0, -1):
 		pieceIndexQueue.append(index)
 
 	# print pieceIndexQueue
@@ -61,147 +62,17 @@ def main(args):
 	keepAlive = MessageGenerator.keepAlive()
 	choke = MessageGenerator.choke()
 
-	for peer in peerList:
-		t = threading.Thread(target=peerThread, args=(torrentData, peer, hashed_info, peer_id))
-		t.start()
-
-	print "Peer 1: " + peerList[0][0]
-
-	peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	peerSocket.connect((peerList[0][0],int(peerList[0][1])))
-	peerSocket.send(handShake)
-	peerSocket.settimeout(60.0)
-
-	#These are enough bytes for the handshake
-	recievedHandshake = peerSocket.recv(68) + "\n" 
-	print "Handshake: " + recievedHandshake
-	recievedPeerId =  recievedHandshake[-21:]
-
-	am_choking = True
-	am_interested = False
-	peer_choking = True
-	peer_interested = False
-
-	responseBuffer = ""
-	remainingResponse = 0
-	responseQueue = []
-	pieceList = []
-
-	unchoke = MessageGenerator.unChoke()
-	peerSocket.send(unchoke)
-	interested = MessageGenerator.interested()
-	peerSocket.send(interested)
-	am_choking = True
-	am_interested = True
-	sentRequest = False
-	timeout = False
-
-	targetFile = open(destinationPath, 'w+')
-
-	while not timeout:
-
-		response = ""
-		try:
-			response = peerSocket.recv(torrentData.blockSize + 5)
-		except:
-			print("Socket timeout")
-			timeout = True
-
-		responseLength = -1
-		if(len(response[:4]) == 4):
-			responseLength = struct.unpack(">I",response[:4])[0]
+	# peers = 1
+	# for peer in peerList:
+	# 	t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, hashed_info, peer_id))
+	# 	t.start()
+	# 	peers-=1
+	# 	if peers == 0:
+	# 		break
+	print (MessageGenerator.request(0,0,2**14))
 
 
-		if(len(response) > 1):
-			# print "Response: " + repr(response)
-			# print "Predicted length: " + str(responseLength)
-			# print "Actual length: " + str(len(response[4:]))
-			# print "Response Buffer: " + repr(responseBuffer)
-			# print "Remaining length: " + str(remainingResponse)
 
-			if sentRequest:
-				print "Receiving piece"
-				WritePiece(0, 0, response)
-				# decodeMessage(responseBuffer, torrentData, responseBuffer,responseQueue)
-				
-			else:
-				if responseBuffer:
-					if remainingResponse == 0:
-						print "Decoding buffer"
-						decodeMessage(responseBuffer, torrentData, responseBuffer,responseQueue)
-						response == 0
-					elif remainingResponse < len(response):
-						print "Splitting buffer"
-						decodeMessage(responseBuffer + response, torrentData, responseBuffer,responseQueue)
-						responselength = struct.unpack(">I",responseBuffer[:4])[0]
-					elif remainingResponse > len(response):
-						responseBuffer += response
-						responselength = remainingResponse - len(response[4:])
-					elif remainingResponse == len(response):
-						responseBuffer += response
-						responselength = remainingResponse - len(response[4:])
-				else:
-					if(responseLength == len(response[4:])):
-						print "Length exactly as expected"
-						decodeMessage(response, torrentData, responseBuffer,responseQueue)
-					elif(responseLength > len(response[4:])):
-						print "Length shorter than as expected"
-						responseBuffer += response
-						remainingResponse = responseLength - len(response[4:])
-						print remainingResponse
-					elif(responseLength < len(response[4:])):
-						print "Length greater than as expected"
-						decodeMessage(response, torrentData, responseBuffer,responseQueue)
-
-		while responseQueue:
-			decodedResponse = responseQueue.pop()
-
-			if(decodedResponse[0] == "choke"):
-				peer_choking = True
-			elif(decodedResponse[0] == "unchoke"):
-				peer_choking = False
-			elif(decodedResponse[0] == "have"):
-				bitList[decodedResponse[1]] = True
-			elif(decodedResponse[0] == "bitfield"):
-				bitList = decodedResponse[1]
-			elif(decodedResponse[0] == "piece"):
-				print("We are receiving a piece")
-				writePiece(decodedResponse[1], decodedResponse[3])
-
-			if(decodedResponse[0] != "badmessage"):
-				print decodedResponse[0]
-
-		if not peer_choking and not sentRequest:
-			print("not being choked, we can request a piece now")
-			print("requesting first piece")
-			print("piece size: " + str(16384))
-			
-			requestPiece = MessageGenerator.request(0,0,16384)
-			peerSocket.send(requestPiece)
-			sentRequest = True
-
-	# print "Peer 1: " + peerList[0][0]
-
-	# response = peerSocket.recv(1024)
-	# print "First response: " + repr(response)
-	# decodedTuple = decodeMessage(response, torrentData)
-	# print decodedTuple
-	# print len(decodedTuple[1])
-	# print torrentData.numPieces
-	# requestFirst = MessageGenerator.unChoke()
-	# peerSocket.send(requestFirst)
-	# print "My First Message: " + requestFirst
-
-	# response = peerSocket.recv(1024)
-	# decodedTuple = decodeMessage(response, torrentData)
-	# print "Second response: " + repr(response)
-
-	# requestSecond = MessageGenerator.request(0,0,torrentData.pieceSize)
-	# peerSocket.send(requestSecond)
-	# print "My Second Message: " + requestSecond
-
-	# response = peerSocket.recv(1024)
-	# print repr(response)
 
 def getPeerList(metaDataList, hashed_info, peer_id):
 
@@ -263,18 +134,30 @@ def hashMetaData(metaDataList):
 	hashed_info = sha1.digest()
 	return hashed_info
 
-def peerThread(torrentData, peer, hashed_info, peer_id):
+def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 
-	peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	peerSocket.connect((peer[0],int(peer[1])))
-	handShake = MessageGenerator.handShake(hashed_info, peer_id)
-	peerSocket.send(handShake)
-	peerSocket.settimeout(60.0)
+	try:
+		peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		peerSocket.connect((peer[0],int(peer[1])))
+		handShake = MessageGenerator.handShake(hashed_info, peer_id)
+		peerSocket.send(handShake)
+		peerSocket.settimeout(60.0)
 
-	#These are enough bytes for the handshake
-	recievedHandshake = peerSocket.recv(68) + "\n" 
-	print "Handshake: " + recievedHandshake
-	recievedPeerId =  recievedHandshake[-21:]
+		#These are enough bytes for the handshake
+		recievedHandshake = peerSocket.recv(68) + "\n" 
+		print "Handshake: " + recievedHandshake
+		if len(recievedHandshake) != 69:
+			print "Worst handshake ever"
+			sys.exit()
+		recievedPeerId =  recievedHandshake[-21:]
+	except:
+		print "Dropped by peer"
+		sys.exit()
+
+
+	currentPiece = -1
+	currentBlock = -1
+	blockQueue = []
 
 	am_choking = True
 	am_interested = False
@@ -292,14 +175,30 @@ def peerThread(torrentData, peer, hashed_info, peer_id):
 	peerSocket.send(interested)
 	am_choking = True
 	am_interested = True
-	sentRequest = False
 	timeout = False
 
-	while not timeout:
+	while not pieceIndexQueue:
+		pass
+
+	currentPiece = pieceIndexQueue.pop()
+
+	print "This is my current index i'm trying to get: " + str(currentPiece)
+	
+	if not pieceIndexQueue:
+			lastPiece = True
+
+	for blockIndex in range(0, 1):
+		blockQueue.insert(blockIndex, blockIndex)
+
+	currentBlock = blockQueue.pop()
+
+	while not timeout or not finished:
+
+				
 
 		response = ""
 		try:
-			response = peerSocket.recv(torrentData.blockSize + 5)
+			response = peerSocket.recv(1024)
 		except:
 			print("Socket timeout")
 			timeout = True
@@ -310,45 +209,42 @@ def peerThread(torrentData, peer, hashed_info, peer_id):
 
 
 		if(len(response) > 1):
-			# print "Response: " + repr(response)
-			# print "Predicted length: " + str(responseLength)
-			# print "Actual length: " + str(len(response[4:]))
+			print "Response: " + repr(response)
+			print "Predicted length: " + str(responseLength)
+			print "Actual length: " + str(len(response[4:]))
 			# print "Response Buffer: " + repr(responseBuffer)
-			# print "Remaining length: " + str(remainingResponse)
-
-			# if sentRequest:
-			# 	print "Receiving piece"
-			# 	# WritePiece(0, response)
-			# 	decodeMessage(responseBuffer, torrentData, responseBuffer,responseQueue)
-				
+			print "Remaining length: " + str(remainingResponse)
 			
 			if responseBuffer:
 				if remainingResponse == 0:
 					print "Decoding buffer"
-					decodeMessage(responseBuffer, torrentData, responseBuffer,responseQueue)
-					response == 0
+					decodeMessage(responseBuffer + response, torrentData, responseBuffer,responseQueue)
+					remainingResponse = 0
+					responseBuffer = ""
 				elif remainingResponse < len(response):
 					print "Splitting buffer"
-					decodeMessage(responseBuffer + response, torrentData, responseBuffer,responseQueue)
-					responselength = struct.unpack(">I",responseBuffer[:4])[0]
+					tempbuffer = responseBuffer
+					responseBuffer = ""
+					decodeMessage(tempbuffer + response, torrentData, responseBuffer,responseQueue)
+					if(len(responseBuffer[:4]) == 4):
+						remainingResponse = struct.unpack(">I",responseBuffer[:4])[0]
+					elif(len(responseBuffer[:4]) == 0):
+						remainingResponse = 0
 				elif remainingResponse > len(response):
 					print "Receiving additional messages to buffer"
 					responseBuffer += response
-					responselength = remainingResponse - len(response[4:])
+					remainingResponse = remainingResponse - len(response)
 			else:
 				if(responseLength == len(response[4:])):
 					print "Length exactly as expected"
 					decodeMessage(response, torrentData, responseBuffer,responseQueue)
 				elif(responseLength > len(response[4:])):
 					print "Length shorter than as expected"
-					responseBuffer += response
-					remainingResponse = responseLength - len(response[4:])
-					print remainingResponse
+					responseBuffer += response 
+					remainingResponse = responseLength - len(response)
 				elif(responseLength < len(response[4:])):
 					print "Length greater than as expected"
-					decodeMessage(response, torrentData, responseBuffer,responseQueue)
-		else:
-			print "we have gone over buffer"
+					decodeMessage(response, torrentData, responseBuffer, responseQueue)
 
 		while responseQueue:
 			decodedResponse = responseQueue.pop()
@@ -363,19 +259,34 @@ def peerThread(torrentData, peer, hashed_info, peer_id):
 				bitList = decodedResponse[1]
 			elif(decodedResponse[0] == "piece"):
 				print("We are receiving a piece")
-				writePiece(decodedResponse[1], decodedResponse[3])
+				#  WritePiece(pieceNumber, blockNumber, pieceData)
+				# ("piece", pieceIndex, begin, block)
+				WritePiece(decodedResponse[1], decodedResponse[2], decodedResponse[3])
+				
+				# if not blockQueue and pieceIndexQueue:
+				# 	currentPiece = pieceIndexQueue.pop()
+				# 	for blockIndex in range(0, 32):
+				# 		blockQueue.append(blockIndex)
+				# 	if not pieceIndexQueue:
+				# 		lastPiece = True
+				# elif blockQueue:
+				# 	currentBlock = blockQueue.pop()
+				# elif not blockQueue and not pieceIndex:
+				# 	sys.exit()
+
+				# WritePiece(0, 0, "butts")
 
 			if(decodedResponse[0] != "badmessage"):
 				print decodedResponse[0]
 
-		if not peer_choking and not sentRequest:
-			print("not being choked, we can request a piece now")
-			print("requesting first piece")
-			print("piece size: " + str(16384))
-			
-			requestPiece = MessageGenerator.request(0,0,16384)
+		if not peer_choking:
+			print "Current block: " + str(currentBlock)
+			requestPiece = MessageGenerator.request(currentPiece, currentBlock*16384,16384)
 			peerSocket.send(requestPiece)
-			sentRequest = True
+
+	if timeout:
+		print "This peer gives up, relinquishing piece:" + currentPiece
+		pieceIndexQueue.append(currentPiece)
 
 
 def WritePiece(pieceNumber, blockNumber, pieceData):
@@ -403,7 +314,7 @@ def ReadPiece(pieceNumber, blockNumber):
 			del readPiecesQueue[index]
 			return piece
 
-fileCommandQueue = Queue.Queue()
+fileCommandQueue = Queue.Queue()	
 readPiecesQueue = []
 fileCommandMutex = threading.Lock()
 readPiecesMutex = threading.Lock()
@@ -411,15 +322,16 @@ fileCommandNotEmpty = threading.Condition(fileCommandMutex)
 readPiecesNotEmpty = threading.Condition(readPiecesMutex)
 
 def fileManagementThread(destinationPath, pieceSize, blockSize):
-	targetFile = open(destinationPath, 'w+')
+	targetFile = open(destinationPath, 'wb+')
 	while True:
 		fileCommandNotEmpty.acquire()
 		while fileCommandQueue.qsize() <= 0:
 			fileCommandNotEmpty.wait()
 		command = fileCommandQueue.get()
+		# print ("Command: ",command)
 		fileCommandNotEmpty.release()
 		if len(command) > 1:
-			WriteBlockToFile(targetFile, command[0], command[1], pieceSize, blockSize, command[1])
+			WriteBlockToFile(targetFile, command[0], command[1], pieceSize, blockSize, command[2])
 		else:
 			block = ReadBlockFromFile(targetFile, command[0], command[1], pieceSize, blockSize)
 			readPiecesNotEmpty.acquire()
@@ -433,10 +345,9 @@ def ReadBlockFromFile(targetFile, pieceNumber, blockNumber, pieceSize, blockSize
 
 def WriteBlockToFile(targetFile, pieceNumber, blockNumber, pieceSize, blockSize, data):
 	targetFile.seek(pieceNumber * pieceSize + blockNumber * blockSize)
-	targetFile.write(str(data))
-
-	# while not queue.empty():
-	# 	print(str(queue.get()) + "\n")
+	# print "this is the data being written " + data
+	targetFile.write(bytearray(data))
+	# targetFile.close()
 
 class TorrentWrapper:
 	def __init__(self, filePath, length, pieceSize):
@@ -509,6 +420,10 @@ class MessageGenerator:
 	# request: <len=0013><id=6><index><begin><length>
 	@staticmethod
 	def request(index, begin, length):
+		print "Index: " + str(index)
+		print "Begin: " + str(begin)
+		print "Length: " + str(length)
+
 		return (struct.pack("!I", 13) + 
 				struct.pack("!B", 6) + 
 				struct.pack("!I", index) +
@@ -533,7 +448,6 @@ class MessageGenerator:
 
 def decodeMessage(message, torrentData, stringBuffer, queue):
 	# stringResponse = repr(message)
-	# print "Decoding message" + stringResponse
 	if (len(message) > 1):
 		# print stringResponse + "\n"
 
@@ -583,23 +497,23 @@ def decodeMessage(message, torrentData, stringBuffer, queue):
 				length = struct.unpack(">I", message[13:17])[0]
 				queue.insert(0,("request",pieceIndex, begin, length))
 			elif(messageId == 7):
-				# pieceIndex = struct.unpack(">I", message[5:9])[0]
-				# begin = struct.unpack(">I", message[9:13])[0]
-				# block = message[13:]
-				# queue.insert(0,("piece", pieceIndex, begin, block))
-				print("Receiving a piece")
+				pieceIndex = struct.unpack(">I", message[5:9])[0]
+				begin = struct.unpack(">I", message[9:13])[0]
+				block = message[13:]
+				queue.insert(0,("piece", pieceIndex, begin, block))
+				# print("Receiving a piece")
 			elif(messageId == 8):
 				pieceIndex = struct.unpack(">I", message[5:9])[0]
 				begin = struct.unpack(">I", message[9:13])[0]
 				length = struct.unpack(">I", message[13:17])[0]
 				queue.insert(0,("cancel",pieceIndex, begin, length))
-			else:
-				stringbuffer = message
-				return
 
-			if(messageLength != len(message[4:])):
+			if(messageLength < len(message[4:])):
 				# decodeMessage(message[:4+messageLength], torrentData, stringBuffer, queue)
 				decodeMessage(message[4+messageLength:], torrentData, stringBuffer, queue)
+			else:
+				stringbuffer = message
+
 	else:
 			return (("badmessage",))
 
