@@ -185,7 +185,7 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 	print "This is my current index i'm trying to get: " + str(currentPiece)
 	
 	if not pieceIndexQueue:
-			lastPiece = True
+		lastPiece = True
 
 	for blockIndex in range(0, 1):
 		blockQueue.insert(blockIndex, blockIndex)
