@@ -54,7 +54,7 @@ def main(args):
 	pieceIndexQueue = []
 
 	for index in range(0, torrentData.numPieces):
-		pieceIndexQueue.append(index)
+		pieceIndexQueue.insert(0, index)
 
 	# print pieceIndexQueue
 
@@ -164,6 +164,7 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 	peer_interested = False
 
 	responseBuffer = ""
+	pieceBuffer = ""
 	remainingResponse = 0
 	responseQueue = []
 	pieceList = []
@@ -184,8 +185,10 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 	if not pieceIndexQueue:
 			lastPiece = True
 
-	for blockIndex in range(0, 1):
-		blockQueue.insert(blockIndex, blockIndex)
+	for blockIndex in range(0, 32):
+		blockQueue.insert(0, blockIndex)
+
+	# print blockQueue
 
 	currentBlock = blockQueue.pop()
 
@@ -206,11 +209,11 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 
 
 		if(len(response) > 1):
-			print "Response: " + repr(response)
-			print "Predicted length: " + str(responseLength)
-			print "Actual length: " + str(len(response[4:]))
-			# print "Response Buffer: " + repr(responseBuffer)
-			print "Remaining length: " + str(remainingResponse)
+			# print "Response: " + repr(response)
+			# print "Predicted length: " + str(responseLength)
+			# print "Actual length: " + str(len(response[4:]))
+			# # print "Response Buffer: " + repr(responseBuffer)
+			# print "Remaining length: " + str(remainingResponse)
 			
 			if responseBuffer:
 				if remainingResponse == 0:
@@ -256,20 +259,21 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 				bitList = decodedResponse[1]
 			elif(decodedResponse[0] == "piece"):
 				print("We are receiving a piece")
-				#  WritePiece(pieceNumber, blockNumber, pieceData)
-				# ("piece", pieceIndex, begin, block)
-				WritePiece(decodedResponse[1], decodedResponse[2], decodedResponse[3])
-				# requestSent = False
-				# if not blockQueue and pieceIndexQueue:
-				# 	currentPiece = pieceIndexQueue.pop()
-				# 	for blockIndex in range(0, 32):
-				# 		blockQueue.append(blockIndex)
-				# 	if not pieceIndexQueue:
-				# 		lastPiece = True
-				# elif blockQueue:
-				# 	currentBlock = blockQueue.pop()
-				# elif not blockQueue and not pieceIndex:
-				# 	sys.exit()
+				pieceBuffer += decodedResponse[3]
+				requestSent = False
+				if not blockQueue and pieceIndexQueue:
+					WritePiece(decodedResponse[1], decodedResponse[2], decodedResponse[3])
+					print pieceBuffer
+					pieceBuffer = ""
+					currentPiece = pieceIndexQueue.pop()
+					for blockIndex in range(0, 32):
+						blockQueue.insert(0, blockIndex)
+					if not pieceIndexQueue:
+						lastPiece = True
+				elif blockQueue:
+					currentBlock = blockQueue.pop()
+				elif not blockQueue and not pieceIndex:
+					sys.exit()
 
 				# WritePiece(0, 0, "butts")
 
