@@ -53,7 +53,7 @@ def main(args):
 
 	pieceIndexQueue = []
 
-	for index in range(torrentData.numPieces, 0, -1):
+	for index in range(0, torrentData.numPieces):
 		pieceIndexQueue.append(index)
 
 	# print pieceIndexQueue
@@ -62,16 +62,13 @@ def main(args):
 	keepAlive = MessageGenerator.keepAlive()
 	choke = MessageGenerator.choke()
 
-	# peers = 1
-	# for peer in peerList:
-	# 	t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, hashed_info, peer_id))
-	# 	t.start()
-	# 	peers-=1
-	# 	if peers == 0:
-	# 		break
-	print (MessageGenerator.request(0,0,2**14))
-
-
+	peers = 1
+	for peer in peerList:
+		t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, hashed_info, peer_id))
+		t.start()
+		peers-=1
+		if peers == 0:
+			break
 
 
 def getPeerList(metaDataList, hashed_info, peer_id):
@@ -134,6 +131,8 @@ def hashMetaData(metaDataList):
 	hashed_info = sha1.digest()
 	return hashed_info
 
+
+
 def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 
 	try:
@@ -176,9 +175,7 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 	am_choking = True
 	am_interested = True
 	timeout = False
-
-	while not pieceIndexQueue:
-		pass
+	requestSent = False
 
 	currentPiece = pieceIndexQueue.pop()
 
@@ -262,7 +259,7 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 				#  WritePiece(pieceNumber, blockNumber, pieceData)
 				# ("piece", pieceIndex, begin, block)
 				WritePiece(decodedResponse[1], decodedResponse[2], decodedResponse[3])
-				
+				# requestSent = False
 				# if not blockQueue and pieceIndexQueue:
 				# 	currentPiece = pieceIndexQueue.pop()
 				# 	for blockIndex in range(0, 32):
@@ -279,10 +276,11 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 			if(decodedResponse[0] != "badmessage"):
 				print decodedResponse[0]
 
-		if not peer_choking:
+		if not peer_choking and not requestSent:
 			print "Current block: " + str(currentBlock)
 			requestPiece = MessageGenerator.request(currentPiece, currentBlock*16384,16384)
 			peerSocket.send(requestPiece)
+			requestSent = True
 
 	if timeout:
 		print "This peer gives up, relinquishing piece:" + currentPiece
