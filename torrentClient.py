@@ -47,7 +47,8 @@ def main(args):
 	torrentData = TorrentWrapper(destinationPath, torrentBytes, pieceBytes)
 	pieceIndexQueue = Queue.Queue()
 
-	hashed_info = hashMetaData(metaDataList)
+	# hashed_info = hashMetaData(metaDataList)
+	hashed_info = hashData(bencode.bencode(metaDataList["info"]))
 	peer_id = "RS-RemiliaScarlet!!!" #This is legal apparently
 	peerList = getPeerList(metaDataList, hashed_info, peer_id)
 
@@ -124,10 +125,9 @@ def getPeerList(metaDataList, hashed_info, peer_id):
 	
 	return peerList
 
-def hashMetaData(metaDataList):
+def hashData(data):
 	sha1 = hashlib.sha1()
-	bencodedInfo = bencode.bencode(metaDataList["info"])
-	sha1.update(bencodedInfo)
+	sha1.update(data)
 	hashed_info = sha1.digest()
 	return hashed_info
 
@@ -262,8 +262,7 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 				pieceBuffer += decodedResponse[3]
 				requestSent = False
 				if not blockQueue and pieceIndexQueue:
-					WritePiece(decodedResponse[1], decodedResponse[2], decodedResponse[3])
-					print pieceBuffer
+					WritePiece(decodedResponse[1], pieceBuffer)
 					pieceBuffer = ""
 					currentPiece = pieceIndexQueue.pop()
 					for blockIndex in range(0, 32):
@@ -333,7 +332,7 @@ def fileManagementThread(destinationPath, pieceSize):
 		# print ("Command: ",command)
 		fileCommandNotEmpty.release()
 		if len(command) > 1:
-			WriteBlockToFile(targetFile, command[0], pieceSize, blockSize, command[2])
+			WritePieceToFile(targetFile, command[0], pieceSize, blockSize, command[2])
 		else:
 			block = ReadBlockFromFile(targetFile, command[0], pieceSize, blockSize)
 			readPiecesNotEmpty.acquire()
@@ -347,8 +346,10 @@ def ReadPieceFromFile(targetFile, pieceNumber, pieceSize):
 
 def WritePieceToFile(targetFile, pieceNumber, pieceSize, data):
 	targetFile.seek(pieceNumber * pieceSize)
+	print data
 	# print "this is the data being written " + data
-	targetFile.write(bytearray(data))
+	targetFile.write(data)
+	# print data > "help.txt"
 	# targetFile.close()
 
 class TorrentWrapper:
