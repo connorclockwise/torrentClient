@@ -265,7 +265,7 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 					WritePiece(decodedResponse[1], pieceBuffer)
 					pieceBuffer = ""
 					currentPiece = pieceIndexQueue.pop()
-					for blockIndex in range(0, 32):
+					for blockIndex in range(0, 32):		
 						blockQueue.insert(0, blockIndex)
 					if not pieceIndexQueue:
 						lastPiece = True
@@ -291,6 +291,7 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 
 
 def WritePiece(pieceNumber, pieceData):
+	print "HI"
 	fileCommandNotEmpty.acquire()
 	print "Requesting Write of Piece #", pieceNumber
 	fileCommandQueue.put((pieceNumber, pieceData))
@@ -298,6 +299,7 @@ def WritePiece(pieceNumber, pieceData):
 	fileCommandNotEmpty.release()
 
 def ReadPiece(pieceNumber):
+	print "HI"
 	fileCommandMutex.acquire()
 	print "Requesting Read of Piece #", pieceNumber
 	fileCommandQueue.put((pieceNumber))
@@ -327,9 +329,10 @@ def fileManagementThread(destinationPath, pieceSize):
 		targetFile = open(destinationPath, 'wb+')
 		fileCommandNotEmpty.acquire()
 		while fileCommandQueue.qsize() <= 0:
+			print "WAITING"
 			fileCommandNotEmpty.wait()
+		print "=================================================="
 		command = fileCommandQueue.get()
-		# print ("Command: ",command)
 		fileCommandNotEmpty.release()
 		if len(command) > 1:
 			WritePieceToFile(targetFile, command[0], pieceSize, command[1])
@@ -342,10 +345,12 @@ def fileManagementThread(destinationPath, pieceSize):
 		targetFile.close()
 	
 def ReadPieceFromFile(targetFile, pieceNumber, pieceSize):
+	print "READ"
 	targetFile.seek(pieceNumber * pieceSize)
 	return targetFile.read(pieceSize)
 
 def WritePieceToFile(targetFile, pieceNumber, pieceSize, data):
+	print "WRITE"
 	targetFile.seek(pieceNumber * pieceSize)
 	print data
 	# print "this is the data being written " + data
