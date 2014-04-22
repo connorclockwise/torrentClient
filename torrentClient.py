@@ -54,7 +54,7 @@ def main(args):
 	hashStr = metaDataList["info"]["pieces"]
 	pieceHashes = {}
 	for i in range(0,len(hashStr),20):
-		pieceHashes[i//20] = hashStr[i:i+20]
+		pieceHashes[i/20] = hashStr[i:i+20]
 
 	pieceIndexQueue = []
 
@@ -63,13 +63,13 @@ def main(args):
 	
 	handShake = MessageGenerator.handShake(hashed_info, peer_id)
 
-	# peers = 1
-	# for peer in peerList:
-	# 	t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, handShake, pieceHashes))
-	# 	t.start()
-	# 	peers-=1
-	# 	if peers == 0:
-	# 		break
+	peers = 30
+	for peer in peerList:
+		t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, handShake, pieceHashes))
+		t.start()
+		peers-=1
+		if peers == 0:
+			break
 
 
 def getPeerList(metaDataList, hashed_info, peer_id):
@@ -130,6 +130,7 @@ def hashData(data):
 	sha1.update(data)
 	hashed_info = sha1.digest()
 	return hashed_info
+	sha1 = None
 
 
 
@@ -260,14 +261,16 @@ def peerThread(torrentData, peer, pieceIndexQueue, handShake, pieceHashes):
 					else:
 						print "Incorrect Hash, retrying piece"
 					pieceBuffer = ""
-					
 					for blockIndex in range(0, 32):
 						blockQueue.insert(0, blockIndex)
+					currentBlock = blockQueue.pop()
 					if not pieceIndexQueue:
 						lastPiece = True
 				elif blockQueue:
 					currentBlock = blockQueue.pop()
 				elif not blockQueue and not pieceIndex:
+					global finished
+					finished = True
 					sys.exit()
 
 				# WritePiece(0, 0, "butts")
