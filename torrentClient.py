@@ -51,22 +51,23 @@ def main(args):
 	hashed_info = hashData(bencode.bencode(metaDataList["info"]))
 	peer_id = "RS-RemiliaScarlet!!!" #This is legal apparently
 	peerList = getPeerList(metaDataList, hashed_info, peer_id)
-	pieceHashs = struct.unpack(metaDataList["info"]["pieces"])
+	hashStr = metaDataList["info"]["pieces"]
+	pieceHashes = {}
+	for i in range(0,len(hashStr),20):
+		pieceHashes[i//20] = hashStr[i:i+20]
+
+	# firstPiece = metaDataList["info"]["pieces"][:20]
 
 	pieceIndexQueue = []
 
 	for index in range(0, torrentData.numPieces):
 		pieceIndexQueue.insert(0, index)
-
-	# print pieceIndexQueue
-
 	
-	keepAlive = MessageGenerator.keepAlive()
-	choke = MessageGenerator.choke()
+	handShake = MessageGenerator.handShake(hashed_info, peer_id)
 
 	peers = 1
 	for peer in peerList:
-		t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, hashed_info, peer_id))
+		t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, handShake, pieceHashes))
 		t.start()
 		peers-=1
 		if peers == 0:
@@ -134,12 +135,11 @@ def hashData(data):
 
 
 
-def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
+def peerThread(torrentData, peer, pieceIndexQueue, handShake, pieceHashes):
 
 	try:
 		peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		peerSocket.connect((peer[0],int(peer[1])))
-		handShake = MessageGenerator.handShake(hashed_info, peer_id)
 		peerSocket.send(handShake)
 		peerSocket.settimeout(60.0)
 
@@ -210,20 +210,13 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 
 
 		if(len(response) > 1):
-			# print "Response: " + repr(response)
-			# print "Predicted length: " + str(responseLength)
-			# print "Actual length: " + str(len(response[4:]))
-			# # print "Response Buffer: " + repr(responseBuffer)
-			# print "Remaining length: " + str(remainingResponse)
 			
 			if responseBuffer:
 				if remainingResponse == 0:
-					print "Decoding buffer"
 					decodeMessage(responseBuffer + response, torrentData, responseBuffer,responseQueue)
 					remainingResponse = 0
 					responseBuffer = ""
 				elif remainingResponse < len(response):
-					print "Splitting buffer"
 					tempbuffer = responseBuffer
 					responseBuffer = ""
 					decodeMessage(tempbuffer + response, torrentData, responseBuffer,responseQueue)
@@ -232,19 +225,15 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 					elif(len(responseBuffer[:4]) == 0):
 						remainingResponse = 0
 				elif remainingResponse > len(response):
-					print "Receiving additional messages to buffer"
 					responseBuffer += response
 					remainingResponse = remainingResponse - len(response)
 			else:
 				if(responseLength == len(response[4:])):
-					print "Length exactly as expected"
 					decodeMessage(response, torrentData, responseBuffer,responseQueue)
 				elif(responseLength > len(response[4:])):
-					print "Length shorter than as expected"
 					responseBuffer += response 
 					remainingResponse = responseLength - len(response)
 				elif(responseLength < len(response[4:])):
-					print "Length greater than as expected"
 					decodeMessage(response, torrentData, responseBuffer, responseQueue)
 
 		while responseQueue:
@@ -263,9 +252,17 @@ def peerThread(torrentData, peer, pieceIndexQueue, hashed_info, peer_id):
 				pieceBuffer += decodedResponse[3]
 				requestSent = False
 				if not blockQueue and pieceIndexQueue:
-					WritePiece(decodedResponse[1], pieceBuffer)
+					pieceHash = hashData(pieceBuffer)
+					print currentPiece
+					print repr(pieceHashes[currentPiece])
+					print repr(pieceHash)
+					if pieceHashes[currentPiece] == pieceHash:
+						WritePiece(decodedResponse[1], pieceBuffer)
+						currentPiece = pieceIndexQueue.pop()
+					else:
+						print "Incorrect Hash, retrying piece"
 					pieceBuffer = ""
-					currentPiece = pieceIndexQueue.pop()
+					
 					for blockIndex in range(0, 32):
 						blockQueue.insert(0, blockIndex)
 					if not pieceIndexQueue:
@@ -348,7 +345,7 @@ def ReadPieceFromFile(targetFile, pieceNumber, pieceSize):
 
 def WritePieceToFile(targetFile, pieceNumber, pieceSize, data):
 	targetFile.seek(pieceNumber * pieceSize)
-	print data
+	# print data
 	# print "this is the data being written " + data
 	targetFile.write(data)
 	# print data > "help.txt"
