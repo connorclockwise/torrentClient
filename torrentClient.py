@@ -3,6 +3,7 @@
 import bencode
 import hashlib
 import Queue
+import os
 import socket
 import sys
 import struct
@@ -29,22 +30,25 @@ finished = False
 def main(args):
 
 
-
-	if len(args) != 3:
-		sys.exit("\nInvalid syntax, please use the arguments 'arg1: torrent file path, arg2: finished file path")
+	destinationPath = ""
+	if len(args) > 3 and len(args) < 2:
+		sys.exit("\nInvalid syntax, please use the arguments 'arg1: torrent file path, (optional)arg2: finished file path")
+	elif len(args) == 3:
+		destinationPath = args[2]
 
 	metaDataPath = args[1]
-	destinationPath = args[2]
 
 	metaDataList = bencode.bdecode(open(metaDataPath, 'rwb').read())
 
 
 	torrentBytes = int(metaDataList["info"]["length"])
 	pieceBytes = int(metaDataList["info"]["piece length"])
-	fileThread = threading.Thread(name = 'File Thread', target = fileManagementThread, args = (destinationPath, pieceBytes))
+	fileThread = threading.Thread(name = 'File Thread', target = fileManagementThread, args = (destinationPath +metaDataList["info"]["name"], pieceBytes))
 	fileThread.start()
 
-	torrentData = TorrentWrapper(destinationPath, torrentBytes, pieceBytes)
+	# print "name" + metaDataList["info"]["name"]
+
+	torrentData = TorrentWrapper(metaDataList["info"]["name"], torrentBytes, pieceBytes)
 	pieceIndexQueue = Queue.Queue()
 
 	# hashed_info = hashMetaData(metaDataList)
@@ -74,18 +78,10 @@ def main(args):
 
 def getPeerList(metaDataList, hashed_info, peer_id):
 
+	# print  metaDataList["announce"]
+	print  metaDataList["announce-list"]
+
 	torrentTrackerUrl = metaDataList["announce"]
-	slash = torrentTrackerUrl.find("/")
-	torrentTrackerHostName = torrentTrackerUrl[slash + 2:]
-	slash2 = torrentTrackerHostName.find("/")
-	torrentTrackerHostName = torrentTrackerHostName[:slash2]
-	colon = torrentTrackerHostName.find(":")
-	torrentTrackerHostName = torrentTrackerHostName[:colon]
-	# print torrentTrackerUrl
-	# print torrentTrackerHostName
-
-	
-
 	hashed_info_urlSafe = urllib.quote(hashed_info)
 	port = "6881"
 	uploaded = 0
@@ -94,9 +90,6 @@ def getPeerList(metaDataList, hashed_info, peer_id):
 	compact = 0
 	no_peer_id = 0
 	event = "started"
-
-	# print(str(to"rrentTrackerHostName))
-	# print decodedDict["announce-list"]
 
 	getRequest = ( torrentTrackerUrl +
 	"?info_hash=" + hashed_info_urlSafe  +
@@ -108,8 +101,23 @@ def getPeerList(metaDataList, hashed_info, peer_id):
 	"&compact=" + str(1) +
 	"&no_peer_id=0" +
 	"&event=started")
+	response = ""
+	try:
+		response = urllib2.urlopen(getRequest)
+	except:
+		getRequest = ( metaDataList["announce-list"][2][0] +
+		"?info_hash=" + hashed_info_urlSafe  +
+		"&peer_id=" + peer_id  +
+		"&port=" + port +
+		"&uploaded=" + str(uploaded)  +
+		"&downloaded=" + str(downloaded)  +
+		"&left=" + str(left) +
+		"&compact=" + str(1) +
+		"&no_peer_id=0" +
+		"&event=started")
 
-	response = urllib2.urlopen(getRequest)
+		response = urllib2.urlopen(getRequest)
+
 	bencodedResponse = response.read()
 	decodedResponse = bencode.bdecode(bencodedResponse)
 	peerListString = decodedResponse["peers"]
@@ -325,10 +333,13 @@ piecesDictionary = {}
 
 def fileManagementThread(destinationPath, pieceSize):
 	while True:
+		if os.path.exists("myfile.dat"):
+			f = file(destinationPath, "r+")
+		else:
+			f = file(destinationPath, "w")
 		targetFile = open(destinationPath, 'r+')
 		fileCommandNotEmpty.acquire()
 		while fileCommandQueue.qsize() <= 0:
-			print "WAITING"
 			fileCommandNotEmpty.wait()
 		command = fileCommandQueue.get()
 		fileCommandNotEmpty.release()
@@ -349,14 +360,14 @@ def ReadPieceFromFile(targetFile, pieceNumber, pieceSize):
 
 def WritePieceToFile(targetFile, pieceNumber, pieceSize, data):
 	print "WRITE", pieceNumber
-	targetFile.seek(0)#pieceNumber * pieceSize)
+	targetFile.seek(pieceNumber * pieceSize)
 	# print data
 	# print "this is the data being written " + data
-	#targetFile.write("Hello")
+	targetFile.write(data)
+	targetFile.flush()
 	# print data > "help.txt"
 	# targetFile.close()
-	pieceDictionary[pieceNumber] = data
-
+	
 class TorrentWrapper:
 	def __init__(self, filePath, length, pieceSize):
 		self.length = length
