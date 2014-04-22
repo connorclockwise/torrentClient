@@ -63,13 +63,13 @@ def main(args):
 	
 	handShake = MessageGenerator.handShake(hashed_info, peer_id)
 
-	peers = 30
+	peers = 1
 	for peer in peerList:
-		t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, handShake, pieceHashes))
-		t.start()
-		peers-=1
-		if peers == 0:
-			break
+	 	t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, handShake, pieceHashes))
+	 	t.start()
+	 	peers-=1
+	 	if peers == 0:
+	 		break
 
 
 def getPeerList(metaDataList, hashed_info, peer_id):
@@ -290,7 +290,6 @@ def peerThread(torrentData, peer, pieceIndexQueue, handShake, pieceHashes):
 
 
 def WritePiece(pieceNumber, pieceData):
-	print "HI"
 	fileCommandNotEmpty.acquire()
 	print "Requesting Write of Piece #", pieceNumber
 	fileCommandQueue.put((pieceNumber, pieceData))
@@ -298,7 +297,6 @@ def WritePiece(pieceNumber, pieceData):
 	fileCommandNotEmpty.release()
 
 def ReadPiece(pieceNumber):
-	print "HI"
 	fileCommandMutex.acquire()
 	print "Requesting Read of Piece #", pieceNumber
 	fileCommandQueue.put((pieceNumber))
@@ -322,15 +320,16 @@ fileCommandMutex = threading.Lock()
 readPiecesMutex = threading.Lock()
 fileCommandNotEmpty = threading.Condition(fileCommandMutex)
 readPiecesNotEmpty = threading.Condition(readPiecesMutex)
+piecesDictionary = {}
+
 
 def fileManagementThread(destinationPath, pieceSize):
 	while True:
-		targetFile = open(destinationPath, 'wb+')
+		targetFile = open(destinationPath, 'r+')
 		fileCommandNotEmpty.acquire()
 		while fileCommandQueue.qsize() <= 0:
 			print "WAITING"
 			fileCommandNotEmpty.wait()
-		print "=================================================="
 		command = fileCommandQueue.get()
 		fileCommandNotEmpty.release()
 		if len(command) > 1:
@@ -344,18 +343,19 @@ def fileManagementThread(destinationPath, pieceSize):
 		targetFile.close()
 	
 def ReadPieceFromFile(targetFile, pieceNumber, pieceSize):
-	print "READ"
+	print "READ", pieceNumber
 	targetFile.seek(pieceNumber * pieceSize)
 	return targetFile.read(pieceSize)
 
 def WritePieceToFile(targetFile, pieceNumber, pieceSize, data):
-	print "WRITE"
-	targetFile.seek(pieceNumber * pieceSize)
+	print "WRITE", pieceNumber
+	targetFile.seek(0)#pieceNumber * pieceSize)
 	# print data
 	# print "this is the data being written " + data
-	targetFile.write(data)
+	#targetFile.write("Hello")
 	# print data > "help.txt"
 	# targetFile.close()
+	pieceDictionary[pieceNumber] = data
 
 class TorrentWrapper:
 	def __init__(self, filePath, length, pieceSize):
