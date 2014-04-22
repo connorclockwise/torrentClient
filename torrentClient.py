@@ -56,8 +56,6 @@ def main(args):
 	for i in range(0,len(hashStr),20):
 		pieceHashes[i//20] = hashStr[i:i+20]
 
-	# firstPiece = metaDataList["info"]["pieces"][:20]
-
 	pieceIndexQueue = []
 
 	for index in range(0, torrentData.numPieces):
@@ -65,13 +63,13 @@ def main(args):
 	
 	handShake = MessageGenerator.handShake(hashed_info, peer_id)
 
-	peers = 1
-	for peer in peerList:
-		t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, handShake, pieceHashes))
-		t.start()
-		peers-=1
-		if peers == 0:
-			break
+	# peers = 1
+	# for peer in peerList:
+	# 	t = threading.Thread(target=peerThread, args=(torrentData, peer, pieceIndexQueue, handShake, pieceHashes))
+	# 	t.start()
+	# 	peers-=1
+	# 	if peers == 0:
+	# 		break
 
 
 def getPeerList(metaDataList, hashed_info, peer_id):
